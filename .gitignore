@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+data/raw/
+data/cache/
+reports/demo/
+SUBMISSION_EMAIL.md
+progress.md
+*.log
+*.docx

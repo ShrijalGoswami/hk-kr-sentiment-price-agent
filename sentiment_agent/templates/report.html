@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentiment Price Report</title>
+<style>
+:root{color-scheme:light;--page:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#6f6d68;--grid:#e1e0d9;--axis:#c3c2b7;--border:rgba(11,11,11,.10);
+--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--bull:#2a78d6;--bear:#e34948;--flat:#898781;--wash:#f0efec;--warn-bg:#fff4dc;--warn-ink:#6b4a00}
+@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){color-scheme:dark;--page:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#a3a198;--grid:#2c2c2a;--axis:#383835;--border:rgba(255,255,255,.10);
+--s1:#3987e5;--s2:#d95926;--s3:#199e70;--bull:#3987e5;--bear:#e66767;--flat:#898781;--wash:#383835;--warn-bg:#3a2c0a;--warn-ink:#fbd98a}}
+:root[data-theme="dark"]{color-scheme:dark;--page:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#a3a198;--grid:#2c2c2a;--axis:#383835;--border:rgba(255,255,255,.10);
+--s1:#3987e5;--s2:#d95926;--s3:#199e70;--bull:#3987e5;--bear:#e66767;--flat:#898781;--wash:#383835;--warn-bg:#3a2c0a;--warn-ink:#fbd98a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI","Malgun Gothic","Microsoft JhengHei",sans-serif}
+main{max-width:1180px;margin:0 auto;padding:32px 16px 72px}
+h1{font-size:30px;line-height:1.2;margin:0 0 6px;letter-spacing:-.01em}
+h2{font-size:22px;margin:48px 0 4px}
+h3{font-size:15px;margin:0 0 10px}
+p{margin:0 0 10px}
+a{color:inherit}
+.muted{color:var(--muted)}.small{font-size:13px}
+.ink2{color:var(--ink2)}
+.banner{background:var(--warn-bg);color:var(--warn-ink);border-radius:8px;padding:12px 16px;margin:16px 0;font-weight:600}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr));gap:12px;margin-top:20px}
+.tile .value{font-size:30px;line-height:1.15;font-weight:650}
+.tile .label{font-size:13px;color:var(--ink2);margin-bottom:6px}
+.verdict{margin-top:12px}.verdict strong{display:block;font-size:17px;margin-bottom:4px}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:12px;margin-top:12px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-weight:600;color:var(--ink2);text-align:right;padding:8px 10px;border-bottom:1px solid var(--axis);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--grid);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+th:first-child,td:first-child,th.l,td.l{text-align:left}
+th[data-sort]{cursor:pointer}th[data-sort]:hover{color:var(--ink)}
+th[aria-sort=descending]::after{content:" ↓"}th[aria-sort=ascending]::after{content:" ↑"}
+tr:last-child td{border-bottom:0}
+.name{font-weight:600}.name small{display:block;font-weight:400;color:var(--muted)}
+.dir{font-weight:600}.dir.bull::before{content:"▲ "}.dir.bear::before{content:"▼ "}.dir.flat::before{content:"● "}
+.bull-t{color:var(--bull)}.bear-t{color:var(--bear)}
+.dir.bull{color:var(--bull)}.dir.bear{color:var(--bear)}.dir.flat{color:var(--muted)}
+.meter{display:inline-flex;align-items:center;gap:8px}
+.meter .track{position:relative;width:76px;height:8px;background:var(--wash);border-radius:4px}
+.meter .fill{position:absolute;top:0;height:8px;border-radius:4px}
+.meter .fill.bull{left:50%;background:var(--bull)}.meter .fill.bear{right:50%;background:var(--bear)}.meter .fill.flat{left:50%;background:var(--flat)}
+.legend{display:flex;gap:16px;font-size:13px;color:var(--ink2);margin-bottom:10px;flex-wrap:wrap}
+.swatch{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}
+.stack-row{display:grid;grid-template-columns:96px 1fr 54px;align-items:center;gap:8px;margin:9px 0;font-size:13px}
+.stack{display:flex;gap:2px;height:14px}
+.stack span{display:block;height:14px;border-radius:2px}
+.stack span:first-child{border-radius:4px 2px 2px 4px}.stack span:last-child{border-radius:2px 4px 4px 2px}
+.c-lihkg,.c-naver{background:var(--s1)}.c-telegram{background:var(--s2)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:12px;margin-top:12px}
+.card header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px}
+.card .px{font-size:21px;font-weight:650;text-align:right;line-height:1.15}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:3px 16px;font-size:13px;margin:10px 0}
+.facts div{display:flex;justify-content:space-between;gap:8px;white-space:nowrap}.facts .wide{grid-column:1/-1}.facts span:first-child{color:var(--muted)}
+.facts span:last-child{font-variant-numeric:tabular-nums}
+.pos{font-size:13px;border-radius:6px;background:var(--wash);padding:8px 10px;margin:10px 0}
+details{margin-top:8px;font-size:13px}summary{cursor:pointer;color:var(--ink2)}
+.quote{margin:8px 0;color:var(--ink2);overflow-wrap:anywhere}.quote b{color:var(--ink);font-weight:600}
+svg{display:block;width:100%;height:auto}
+svg text{font:11px system-ui,-apple-system,"Segoe UI",sans-serif}
+.grid{stroke:var(--grid);stroke-width:1}.axis{stroke:var(--axis);stroke-width:1}
+.tick{fill:var(--muted);font-variant-numeric:tabular-nums}.dlabel{fill:var(--ink2);font-size:12px!important}
+.hit{fill:transparent}.hover{fill:transparent}.hover:hover{fill:var(--ink);opacity:.06}
+.dot .mark{stroke:var(--surface);stroke-width:2}.dot.bull .mark{fill:var(--bull)}.dot.bear .mark{fill:var(--bear)}.dot.flat .mark{fill:var(--flat)}
+.price{fill:none;stroke:var(--s1);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.level{stroke-width:1;stroke-dasharray:4 3}.level.sup{stroke:var(--bull)}.level.res{stroke:var(--bear)}
+.forecast{stroke:var(--ink2);stroke-width:1.5;stroke-dasharray:3 3}.band{stroke:var(--ink2);stroke-width:5;stroke-linecap:round;opacity:.22}
+.fc-dot{fill:var(--ink);stroke:var(--surface);stroke-width:2}
+.sbar.bull{fill:var(--bull)}.sbar.bear{fill:var(--bear)}
+.line{fill:none;stroke-width:2;stroke-linejoin:round}.line.s1{stroke:var(--s1)}.line.s2{stroke:var(--s2)}.line.s3{stroke:var(--s3)}
+.key.s1{fill:var(--s1)}.key.s2{fill:var(--s2)}.key.s3{fill:var(--s3)}
+.coef{display:grid;grid-template-columns:140px 1fr 56px;gap:8px;align-items:center;font-size:13px;margin:7px 0}
+.coef .t{height:8px;border-radius:4px}.coef .sentiment{background:var(--s1)}.coef .price{background:var(--s2);stroke:none}
+.champ td{font-weight:600}
+#tip{position:fixed;z-index:9;max-width:320px;pointer-events:none;background:var(--ink);color:var(--surface);font-size:12.5px;padding:6px 9px;border-radius:6px;opacity:0;transition:opacity .08s}
+ul.plain{margin:6px 0 0;padding-left:18px}
+</style>
+</head>
+<body>
+<main>
+<h1>Retail sentiment and next-bar price report</h1>
+<p class="ink2">HKEX and KRX · social and news from {{ window_start }} to {{ generated }} · {{ interval }} bars · sentiment backend: {{ backend }}</p>
+{% if demo %}<div class="banner">DEMO RUN: every social post and news article below is synthetic, generated to exercise the pipeline. Prices are real. No result on this page says anything about the market.</div>{% endif %}
+{% for w in warnings %}<div class="banner">Data warning: {{ w }}</div>{% endfor %}
+
+<div class="tiles">
+  <div class="panel tile"><div class="label">Posts analysed</div><div class="value">{{ "{:,}".format(n_social) }}</div><div class="small muted">plus {{ n_news }} news articles</div></div>
+  <div class="panel tile"><div class="label">Error vs random walk</div><div class="value">{% if verdict.skill is not none %}{{ "%+.1f"|format(verdict.skill*100) }}%{% else %}–{% endif %}</div><div class="small muted">above 0 means better than "no change"</div></div>
+  <div class="panel tile"><div class="label">Direction correct</div><div class="value">{{ verdict.hit|pct }}</div><div class="small muted">{{ verdict.n }} out-of-sample forecasts</div></div>
+  <div class="panel tile"><div class="label">Positions taken</div><div class="value">{{ positions }} of {{ n_tickers }}</div><div class="small muted">only when the model passes its test</div></div>
+</div>
+<div class="panel verdict"><strong>{{ verdict.headline }}</strong><span class="ink2">{{ verdict.detail }}</span></div>
+
+{% for s in sections %}
+<h2>{{ s.label }} ({{ s.key }})</h2>
+<p class="muted small">Sorted by social mentions. Click a column to re-sort.</p>
+<div class="panel scroll">
+<table class="sortable">
+<thead><tr><th data-sort="text">Ticker</th><th data-sort="num">Price</th><th data-sort="num" aria-sort="descending">Mentions</th><th data-sort="num">Sentiment</th><th class="l" data-sort="text">Direction</th><th class="l" data-sort="text">Position</th><th data-sort="num">Support</th><th data-sort="num">Resistance</th><th data-sort="num">n+1 forecast</th></tr></thead>
+<tbody>
+{% for c in s.cards %}
+<tr>
+<td data-v="{{ c.name }}"><div class="name">{{ c.name }}<small>{{ c.symbol }} · {{ c.local_name }}</small></div></td>
+<td data-v="{{ c.price }}">{{ c.price|price(c.currency) }}</td>
+<td data-v="{{ c.mentions_est }}">{% if c.mentions_extrapolated %}<span title="Row cap reached; scaled from the observed posting rate">~</span>{% endif %}{{ "{:,}".format(c.mentions_est) }}</td>
+<td data-v="{{ c.score }}"><span class="meter"><span class="track"><span class="fill {{ c.score|polarity }}" style="width:{{ c.score|abs if c.score|abs < 50 else 50 }}%"></span></span>{{ c.score|signed }}</span></td>
+<td class="l" data-v="{{ c.direction }}"><span class="dir {{ c.score|polarity }}">{{ c.direction }}</span></td>
+<td class="l" data-v="{{ c.position.side }}">{% if c.position.side != "Flat" %}<b>{{ c.position.side }}</b>{% elif c.position.bias != "Neutral" %}Flat <span class="muted">({{ c.position.bias }} bias)</span>{% else %}Flat{% endif %}</td>
+<td data-v="{{ c.levels.support[0].price }}">{{ c.levels.support[0].price|price(c.currency) }}</td>
+<td data-v="{{ c.levels.resistance[0].price }}">{{ c.levels.resistance[0].price|price(c.currency) }}</td>
+<td data-v="{{ c.forecast.ret_bps }}">{{ c.forecast.price|price(c.currency) }} <span class="muted">{{ "%+.0f"|format(c.forecast.ret_bps) }} bps</span></td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+
+<div class="two">
+  <div class="panel"><h3>Attention against sentiment</h3>{{ s.scatter }}</div>
+  <div class="panel"><h3>Social mentions by source</h3>
+    <div class="legend">{% for src in s.sources %}<span><span class="swatch c-{{ src.key }}"></span>{{ src.label }}</span>{% endfor %}</div>
+    {% for c in s.cards %}
+    <div class="stack-row" data-tip="{{ c.name }}: {% for b in c.bar %}{{ b.label }} {{ b.count }}{% if not loop.last %}, {% endif %}{% endfor %}"><span>{{ c.name.split()[0] }}</span><div class="stack">{% for b in c.bar %}{% if b.count %}<span class="c-{{ b.source }}" style="width:{{ b.width }}%"></span>{% endif %}{% endfor %}</div><span style="text-align:right;font-variant-numeric:tabular-nums">{{ "{:,}".format(c.mentions) }}</span></div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="cards">
+{% for c in s.cards %}
+<article class="panel card">
+  <header><div class="name">{{ c.name }}<small>{{ c.symbol }} · {{ c.local_name }}</small></div><div class="px">{{ c.price|price(c.currency) }}<div class="small muted" style="font-weight:400">{{ c.currency }}</div></div></header>
+  <div><span class="dir {{ c.score|polarity }}">{{ c.direction }} {{ c.score|signed }}</span> <span class="muted small">· {{ c.confidence }} confidence</span></div>
+  {{ c.chart }}
+  <div class="facts">
+    <div><span>Social / news</span><span>{{ c.social_score|signed(0) }} / {{ c.news_score|signed(0) }}</span></div>
+    <div><span>Attention z</span><span>{{ c.attention_z|signed }}</span></div>
+    <div><span>Momentum</span><span>{{ c.momentum|signed }}</span></div>
+    <div><span>{% if c.verified_holder_score is not none %}Verified holders{% else %}News articles{% endif %}</span><span>{% if c.verified_holder_score is not none %}{{ c.verified_holder_score|signed(0) }}{% else %}{{ c.news_count }}{% endif %}</span></div>
+    <div class="wide"><span>Crowd says long / exiting</span><span>{% if c.crowd.stated %}{{ c.crowd.long_pct }}% / {{ c.crowd.exit_pct }}% of {{ c.crowd.stated }}{% else %}–{% endif %}</span></div>
+    <div class="wide"><span>Support</span><span>{{ c.levels.support[0].price|price(c.currency) }} · {{ c.levels.support[1].price|price(c.currency) }}</span></div>
+    <div class="wide"><span>Resistance</span><span>{{ c.levels.resistance[0].price|price(c.currency) }} · {{ c.levels.resistance[1].price|price(c.currency) }}</span></div>
+    <div class="wide"><span>n+1 forecast (80% band)</span><span>{{ c.forecast.price|price(c.currency) }} ({{ c.forecast.low|price(c.currency) }} – {{ c.forecast.high|price(c.currency) }})</span></div>
+  </div>
+  <div class="pos"><b>Position: {{ c.position.side }}</b>{% if c.position.plan %} · {{ c.position.bias }} setup: entry {{ c.position.plan.entry|price(c.currency) }}, stop {{ c.position.plan.stop|price(c.currency) }}, target {{ c.position.plan.target|price(c.currency) }}, R/R {{ c.position.plan.reward_risk }}{% endif %}<br><span class="muted">{{ c.position.reason }}</span></div>
+  {% if c.top_posts or c.top_news %}<details><summary>Top posts and headlines</summary>
+    {% for p in c.top_posts %}<p class="quote"><b>{{ "%+d"|format(p.score) }}</b> · {{ p.source }} · {{ p.time }}<br>{{ p.text }}</p>{% endfor %}
+    {% for p in c.top_news %}<p class="quote"><b>{{ "%+d"|format(p.score) }}</b> · news · {{ p.time }}<br>{% if p.url|safe_url %}<a href="{{ p.url|safe_url }}" rel="noopener noreferrer" target="_blank">{{ p.text }}</a>{% else %}{{ p.text }}{% endif %}</p>{% endfor %}
+  </details>{% endif %}
+</article>
+{% endfor %}
+</div>
+{% endfor %}
+
+<h2>Did the n+1 forecasts work?</h2>
+<p class="muted small">Every forecast was made using only data available at the time. The champion model ({{ champion }}) was fixed before any results existed.</p>
+<div class="panel"><h3>Cumulative error saved against a random walk (bps per bar, averaged across tickers)</h3>{{ advantage }}<p class="small muted">Rising means the model is beating "price stays the same". Falling means it is losing.</p></div>
+<div class="panel scroll" style="margin-top:12px">
+<table>
+<thead><tr><th>Scope</th><th class="l">Model</th><th>Forecasts</th><th>MAE (bps)</th><th>RMSE (bps)</th><th>Price error</th><th>Skill vs RW</th><th>Direction</th><th>95% CI</th><th>IC</th><th>DM p</th></tr></thead>
+<tbody>
+{% for r in scores %}<tr class="{{ 'champ' if r.champion }}"><td>{{ r.scope }}</td><td class="l">{{ r.label }}{{ " (champion)" if r.champion }}</td><td>{{ r.n }}</td><td>{{ r.mae_bps|num }}</td><td>{{ r.rmse_bps|num }}</td><td>{{ r.mape_pct|num(2) }}%</td><td>{% if r.model == "naive" %}–{% else %}{{ r.skill_mae|pct }}{% endif %}</td><td>{{ r.hit_rate|pct }}</td><td>{% if r.hit_low is not none %}{{ r.hit_low|pct(0) }}–{{ r.hit_high|pct(0) }}{% else %}–{% endif %}</td><td>{{ r.ic|num(3) }}</td><td>{{ r.dm_p|num(3) }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+<div class="two">
+  <div class="panel"><h3>Does sentiment add anything?</h3>
+  {% if permutation %}<p>Lift over the price-only model: <b>{{ "%+.2f"|format(permutation.observed_lift_bps) }} bps</b>.</p>
+  <p class="ink2 small">With each stock's sentiment history randomly time-shifted {{ permutation.n_permutations }} times, the average lift was {{ "%+.2f"|format(permutation.null_mean_bps) }} bps and the 95th percentile {{ "%+.2f"|format(permutation.null_p95_bps) }} bps. Permutation p = {{ "%.3f"|format(permutation.p_value) }}.</p>{% else %}<p class="muted">Not run.</p>{% endif %}
+  <h3 style="margin-top:14px">Trading test (next open to close, after costs)</h3>
+  <table><thead><tr><th>Exchange</th><th>Trades</th><th>Gross bps</th><th>Net bps</th><th>Avg net</th><th class="l">Gate</th></tr></thead><tbody>
+  {% for s in sections %}<tr><td>{{ s.key }}</td><td>{{ s.strategy.trades }}</td><td>{{ s.strategy.gross_bps|num(0) }}</td><td>{{ s.strategy.net_bps|num(0) }}</td><td>{{ s.strategy.avg_net_bps|num(1) }}</td><td class="l">{{ "Passed" if s.gate.passed else "Not passed" }}</td></tr>{% endfor %}
+  </tbody></table>
+  <p class="small muted" style="margin-top:8px">A position needs skill above 0 and DM p below {{ gate_p }} on that exchange.</p>
+  </div>
+  <div class="panel"><h3>Largest model weights (bps per 1 standard deviation)</h3>
+  <div class="legend"><span><span class="swatch" style="background:var(--s1)"></span>Sentiment</span><span><span class="swatch" style="background:var(--s2)"></span>Price</span></div>
+  {% for c in coefs %}<div class="coef"><span>{{ c.feature }}</span><div class="t {{ c.kind }}" style="width:{{ c.width }}%"></div><span style="text-align:right">{{ "%+.1f"|format(c.value) }}</span></div>{% endfor %}
+  </div>
+</div>
+
+<h2>Live forecast ledger</h2>
+<div class="panel scroll">
+{% if ledger_summary.settled %}<p>{{ ledger_summary.settled }} settled: direction right {{ ledger_summary.direction_hit_rate|pct }}, beat "no change" {{ ledger_summary.beat_naive_rate|pct }}, inside the 80% band {{ ledger_summary.band_coverage|pct }}, mean error {{ ledger_summary.mean_abs_error_pct|num(2) }}%.</p>
+{% else %}<p class="ink2">No live forecast has settled yet ({{ ledger_summary.pending }} pending). Run <code>python -m sentiment_agent check</code> after the next bar closes.</p>{% endif %}
+{% if ledger %}<table><thead><tr><th>Ticker</th><th>Base close</th><th>Forecast</th><th>Actual</th><th>Error %</th><th class="l">Status</th></tr></thead><tbody>
+{% for r in ledger %}<tr><td>{{ r.symbol }}</td><td>{{ r.base_close|num(2) }}</td><td>{{ r.pred_price|num(2) }}</td><td>{{ r.actual_close|num(2) }}</td><td>{{ r.error_pct|num(2) }}</td><td class="l">{{ r.status }}</td></tr>{% endfor %}
+</tbody></table>{% endif %}
+</div>
+
+<h2>Data quality</h2>
+<div class="panel scroll">
+<table><thead><tr><th>Source</th><th class="l">Collected through</th><th>Items</th><th>Tickers</th><th>First (UTC)</th><th>Last (UTC)</th></tr></thead><tbody>
+{% for r in sources %}<tr><td>{{ r.label }}</td><td class="l">{{ r.actor }}</td><td>{{ "{:,}".format(r.posts) }}</td><td>{{ r.tickers }}</td><td>{{ r.first }}</td><td>{{ r.last }}</td></tr>{% endfor %}
+</tbody></table>
+{% if truncated %}<p class="small" style="margin-top:12px"><b>Row cap reached:</b> {% for t in truncated %}{{ t.symbol }} ({{ t.source }}, {{ t.posts }} posts, from {{ t.first_post.strftime("%b %d %H:%M") }}){% if not loop.last %}; {% endif %}{% endfor %}. Earlier bars are treated as unknown attention, not zero.</p>{% endif %}
+</div>
+<p class="small muted" style="margin-top:24px">Run {{ run_id }}. Research output for an internship assessment, not investment advice.</p>
+</main>
+<div id="tip" role="status"></div>
+<script>
+(function(){
+  var tip=document.getElementById('tip');
+  function show(el,x,y){tip.textContent=el.getAttribute('data-tip');tip.style.opacity=1;var r=tip.getBoundingClientRect();
+    tip.style.left=Math.max(8,Math.min(x+12,innerWidth-r.width-8))+'px';tip.style.top=Math.max(8,y-r.height-10)+'px';}
+  document.addEventListener('mousemove',function(e){var el=e.target.closest&&e.target.closest('[data-tip]');if(el)show(el,e.clientX,e.clientY);else tip.style.opacity=0;});
+  document.addEventListener('focusin',function(e){var el=e.target.closest&&e.target.closest('[data-tip]');if(el){var b=el.getBoundingClientRect();show(el,b.left,b.top);}});
+  document.addEventListener('focusout',function(){tip.style.opacity=0;});
+  document.querySelectorAll('table.sortable th[data-sort]').forEach(function(th,col){th.addEventListener('click',function(){
+    var body=th.closest('table').tBodies[0],desc=th.getAttribute('aria-sort')!=='descending',numeric=th.dataset.sort==='num';
+    th.parentNode.querySelectorAll('th').forEach(function(o){o.removeAttribute('aria-sort');});th.setAttribute('aria-sort',desc?'descending':'ascending');
+    Array.from(body.rows).sort(function(a,b){var x=a.cells[col].dataset.v,y=b.cells[col].dataset.v,c=numeric?(+x)-(+y):x.localeCompare(y);return desc?-c:c;}).forEach(function(r){body.appendChild(r);});
+  });});
+})();
+</script>
+</body>
+</html>

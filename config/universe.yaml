@@ -1,0 +1,130 @@
+# Pipeline universe and run settings. Everything a reviewer may want to change lives here.
+
+window_days: 10          # social/news look-back required by the brief
+interval: 60m            # price bar size: 60m (default) or 1d. "n+1" is the next bar at this size.
+post_latency_minutes: 5  # a post only becomes usable this long after it was written
+
+actors:
+  lihkg: claude_code_reviewer/lihkg-scraper-en
+  naver: hgservices/naver-stock-discussion-scraper
+  telegram: automation-lab/telegram-scraper
+
+limits:                  # sized so two full runs fit the Apify free tier ($5/month): ours and a reviewer's
+  lihkg_search_per_keyword: 20
+  lihkg_threads_per_ticker: 2
+  lihkg_replies_per_thread: 10
+  naver_posts_per_ticker: 75
+  telegram_messages_per_channel: 50
+  max_usd_per_actor_run: 1.0
+  exa_results_per_query: 12
+
+sentiment:
+  backend: auto          # auto | transformer | lexicon
+  neutral_band: 0.10     # |score| below this is reported as Neutral
+  ewm_halflife_bars: 6
+  prior_weight: 2.0      # shrinks thin-data sentiment toward zero
+
+model:
+  champion: ridge_full   # fixed before looking at results, so the headline number is not cherry-picked
+  min_train_rows: 150
+  refit_every_steps: 3
+  embargo_bars: 1
+  permutations: 100
+  gate_max_p_value: 0.10 # a position is only taken if the champion beats random-walk OOS at this level
+
+exchanges:
+  HKEX:
+    label: Hong Kong Exchange
+    tz: Asia/Hong_Kong
+    index: "^HSI"
+    currency: HKD
+    sessions: [["09:30", "12:00"], ["13:00", "16:00"]]
+    closing_auction_minutes: 10
+    last_bar_label: "15:30"
+    round_trip_cost_bps: 25   # stamp duty 0.1% each way + levies and commission
+    social_sources: [lihkg, telegram]
+    telegram_channels: [StockIntelligence, Financial_Express, eco_cn, Kennywen, times001]
+    tickers:
+      - symbol: "0700.HK"
+        code: "00700"
+        name: Tencent Holdings
+        local_name: 騰訊控股
+        search_keywords: [騰訊, "00700"]
+        aliases: [騰訊, 腾讯, 鵝廠, Tencent, "00700", "0700.HK", "700.HK"]
+        news_queries: ["Tencent Holdings 0700.HK stock news", "騰訊控股 00700 股價 新聞"]
+      - symbol: "9988.HK"
+        code: "09988"
+        name: Alibaba Group
+        local_name: 阿里巴巴
+        search_keywords: [阿里巴巴, "09988"]
+        aliases: [阿里巴巴, 阿里, Alibaba, "09988", "9988.HK"]
+        news_queries: ["Alibaba Group 9988.HK stock news", "阿里巴巴 09988 股價 新聞"]
+      - symbol: "3690.HK"
+        code: "03690"
+        name: Meituan
+        local_name: 美團
+        search_keywords: [美團, "03690"]
+        aliases: [美團, 美团, Meituan, "03690", "3690.HK"]
+        news_queries: ["Meituan 3690.HK stock news", "美團 03690 股價 新聞"]
+      - symbol: "0005.HK"
+        code: "00005"
+        name: HSBC Holdings
+        local_name: 滙豐控股
+        search_keywords: [滙豐, 匯豐, "00005"]
+        aliases: [滙豐, 匯豐, 汇丰, 滙控, HSBC, "00005", "0005.HK"]
+        news_queries: ["HSBC Holdings 0005.HK stock news", "滙豐控股 00005 股價 新聞"]
+      - symbol: "1810.HK"
+        code: "01810"
+        name: Xiaomi
+        local_name: 小米集團
+        search_keywords: [小米, "01810"]
+        aliases: [小米, Xiaomi, "01810", "1810.HK"]
+        news_queries: ["Xiaomi 1810.HK stock news", "小米集團 01810 股價 新聞"]
+
+  KRX:
+    label: Korea Exchange
+    tz: Asia/Seoul
+    index: "^KS11"
+    currency: KRW
+    sessions: [["09:00", "15:30"]]
+    closing_auction_minutes: 0
+    last_bar_label: "14:00"
+    round_trip_cost_bps: 20   # securities transaction tax on sale + commission
+    social_sources: [naver, telegram]
+    telegram_channels: [stock_messenger, shmstory, crioppstockfree, moneythemestock, tazastock, hedgecat0301, daishinstrategy, Meritz_strategy]
+    tickers:
+      - symbol: "005930.KS"
+        code: "005930"
+        name: Samsung Electronics
+        local_name: 삼성전자
+        search_keywords: ["005930"]
+        aliases: [삼성전자, 삼전, Samsung Electronics, "005930"]
+        news_queries: ["Samsung Electronics 005930 stock news", "삼성전자 주가 뉴스"]
+      - symbol: "000660.KS"
+        code: "000660"
+        name: SK hynix
+        local_name: SK하이닉스
+        search_keywords: ["000660"]
+        aliases: [SK하이닉스, 하이닉스, 하닉, SK hynix, Hynix, "000660"]
+        news_queries: ["SK hynix 000660 stock news", "SK하이닉스 주가 뉴스"]
+      - symbol: "005380.KS"
+        code: "005380"
+        name: Hyundai Motor
+        local_name: 현대차
+        search_keywords: ["005380"]
+        aliases: [현대차, 현대자동차, Hyundai Motor, "005380"]
+        news_queries: ["Hyundai Motor 005380 stock news", "현대차 주가 뉴스"]
+      - symbol: "373220.KS"
+        code: "373220"
+        name: LG Energy Solution
+        local_name: LG에너지솔루션
+        search_keywords: ["373220"]
+        aliases: [LG에너지솔루션, LG엔솔, 엘지엔솔, LG Energy Solution, "373220"]
+        news_queries: ["LG Energy Solution 373220 stock news", "LG에너지솔루션 주가 뉴스"]
+      - symbol: "068270.KS"
+        code: "068270"
+        name: Celltrion
+        local_name: 셀트리온
+        search_keywords: ["068270"]
+        aliases: [셀트리온, Celltrion, "068270"]
+        news_queries: ["Celltrion 068270 stock news", "셀트리온 주가 뉴스"]
