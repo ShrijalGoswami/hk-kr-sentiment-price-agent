@@ -19,6 +19,24 @@ The model **did not beat a random walk** on real data. On a 10-day sample that i
 
 The run covered 770 social posts and 230 news articles. The full output is in [`reports/latest/`](reports/latest/): download `report.html` and open it in a browser.
 
+### Live n+1 check (2026-11-10)
+
+The 10 forecasts made on 9 November were scored against the first bar of the next session with `python -m sentiment_agent check`.
+
+| Live result (10 forecasts) | Value |
+|---|---|
+| Mean price error, model | 2.57% |
+| Mean price error, random walk | 2.56% |
+| Direction correct | 2 of 9 (Celltrion didn't move) |
+| Beat the random walk | 2 of 10 |
+| Actual price inside the 80% band | 3 of 10 |
+
+The model forecast moves of about 0.01%, while Korean stocks opened sharply higher (SK hynix +6.6%, Samsung Electronics +4.7%). All ten outcomes come from one market-wide move, so this is effectively a single observation.
+
+The 80% band missed because it was sized mostly from intraday hourly errors, while these targets include the overnight gap. Sizing the band separately for the first bar of each session is the next fix.
+
+The scored forecasts are in [`data/ledger.csv`](data/ledger.csv). `report.html` was generated before this check, so its ledger section still says pending.
+
 ## Quick start
 
 ```bash
