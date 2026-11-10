@@ -225,7 +225,7 @@ def verdict(result: ModelResult, cfg: Config) -> dict:
 
 def build_context(cfg: Config, run_id: str, now: pd.Timestamp, window_start: pd.Timestamp, cards: list[dict], result: ModelResult,
                   status: dict, cov: pd.DataFrame, scored: pd.DataFrame, warnings: list[str], ledger_state: pd.DataFrame,
-                  ledger_summary: dict, backend: str, demo: bool) -> dict:
+                  ledger_summary: dict, backend: str, demo: bool, rebuilt: str | None = None) -> dict:
     sections = []
     for key, ex in cfg.exchanges.items():
         mine = [c for c in cards if c["exchange"] == key]
@@ -254,7 +254,7 @@ def build_context(cfg: Config, run_id: str, now: pd.Timestamp, window_start: pd.
                                 "actor": cfg.actors.get(source, "Exa /search")})
     truncated = cov[cov["truncated"]].to_dict("records") if len(cov) else []
     return {
-        "demo": demo, "run_id": run_id, "generated": now.strftime("%Y-%m-%d %H:%M UTC"), "window_start": window_start.strftime("%Y-%m-%d %H:%M UTC"),
+        "demo": demo, "rebuilt": rebuilt, "band": result.band, "run_id": run_id, "generated": now.strftime("%Y-%m-%d %H:%M UTC"), "window_start": window_start.strftime("%Y-%m-%d %H:%M UTC"),
         "interval": cfg.interval, "backend": backend, "sections": sections, "n_social": len(social), "n_news": int((scored["group"] == "news").sum()),
         "verdict": verdict(result, cfg), "scores": scores, "advantage": advantage_chart(result, cfg), "permutation": result.permutation, "coefs": coefs,
         "positions": sum(1 for c in cards if c["position"]["side"] != "Flat"), "n_tickers": len(cards), "sources": source_rows, "truncated": truncated,

@@ -106,6 +106,8 @@ def build_panel(cfg: Config, bars: dict[str, pd.DataFrame], index_bars: dict[str
             continue
         cutoff = df["next_start"].where(df["next_start"] <= now, now)
         df["cutoff"] = cutoff.astype("datetime64[ns, UTC]")
+        # The next bar opens a new session (overnight or weekend), so its return includes the gap since the close.
+        df["overnight"] = (df["next_start"] - df["end"]) > pd.Timedelta(hours=3)
         cuts = df["cutoff"].dt.tz_localize(None).to_numpy(dtype="datetime64[ns]")
         previous = df["cutoff"].shift(1).fillna(window_start)
         hours = ((df["cutoff"] - previous).dt.total_seconds() / 3600).clip(lower=1 / 6).to_numpy()

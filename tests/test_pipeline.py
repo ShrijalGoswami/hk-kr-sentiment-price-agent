@@ -262,7 +262,7 @@ def synthetic_panel(cfg, effect: float, seed: int = 5, n_steps: int = 140, ticke
             close_next = price * np.exp(ret)
             bar_end = start + pd.Timedelta(hours=i)
             row.update(symbol=f"T{t}", exchange="HKEX" if t < tickers / 2 else "KRX", start=bar_end - pd.Timedelta(hours=1), end=bar_end,
-                       cutoff=bar_end, target_end=bar_end + pd.Timedelta(hours=1), close=price, close_next=close_next, y=ret, oc_next=ret, vol=0.01)
+                       cutoff=bar_end, target_end=bar_end + pd.Timedelta(hours=1), overnight=False, close=price, close_next=close_next, y=ret, oc_next=ret, vol=0.01)
             rows.append(row)
             price = close_next
     return pd.DataFrame(rows).sort_values(["cutoff", "symbol"]).reset_index(drop=True)
@@ -315,6 +315,56 @@ def test_gate_blocks_position_without_edge(cfg):
     assert blocked["side"] == "Flat" and blocked["bias"] == "Long"
     assert allowed["side"] == "Long" and allowed["plan"]["stop"] < 96.0 and allowed["plan"]["target"] == 110.0
     assert disagree["side"] == "Flat" and disagree["bias"] == "Neutral"
+
+
+def error_frame(seed=3, days=40):
+    """Hourly forecast errors where every 7th target opens a new session and carries a gap 8x larger."""
+    rng = np.random.default_rng(seed)
+    rows, t = [], pd.Timestamp("2026-10-01", tz=UTC)
+    for i in range(days * 7):
+        overnight = i % 7 == 6
+        t += pd.Timedelta(hours=16 if overnight else 1)
+        rows.append({"symbol": "X", "exchange": "HKEX", "cutoff": t, "target_end": t + pd.Timedelta(hours=1), "overnight": overnight,
+                     "y": float(rng.normal(0, 0.016 if overnight else 0.002)), "ridge_full": 0.0})
+    return pd.DataFrame(rows)
+
+
+def test_new_session_band_is_wider_than_intraday_band():
+    frame = error_frame()
+    night = model.band_offsets(frame, "ridge_full", "HKEX", True)
+    day = model.band_offsets(frame, "ridge_full", "HKEX", False)
+    assert night[1] - night[0] > 4 * (day[1] - day[0])
+
+
+def test_split_band_fixes_new_session_coverage():
+    frame = error_frame()
+    split, pooled = model.band_coverage(frame, "ridge_full", True), model.band_coverage(frame, "ridge_full", False)
+    assert pooled["overnight"] < 0.5 < 0.65 < split["overnight"]
+    assert abs(split["intraday"] - 0.8) < 0.1 and split["n_overnight"] > 15
+
+
+def test_thin_error_history_falls_back_to_returns_of_the_same_kind():
+    frame = error_frame()
+    frame.loc[frame.index[:-20], "ridge_full"] = np.nan  # only 20 recent predictions: about 3 of them overnight
+    night = model.band_offsets(frame, "ridge_full", "HKEX", True)
+    day = model.band_offsets(frame, "ridge_full", "HKEX", False)
+    assert night[1] - night[0] > 4 * (day[1] - day[0])
+
+
+def test_band_coverage_only_uses_errors_known_at_forecast_time():
+    frame = error_frame()
+    base = model.band_coverage(frame, "ridge_full", True)
+    late = frame["cutoff"] > frame["cutoff"].iloc[len(frame) // 2]
+    first_half = model.band_coverage(frame[~late], "ridge_full", True)
+    tampered = frame.copy()
+    tampered.loc[late, "y"] *= 50
+    changed = model.band_coverage(tampered[~late], "ridge_full", True)
+    assert first_half == changed and base["n"] > first_half["n"]
+
+
+def test_as_of_requires_saved_data(cfg):
+    with pytest.raises(SystemExit):
+        pipeline.run(cfg, pipeline.RunOptions(as_of=pd.Timestamp("2026-11-09 10:43:28", tz=UTC)))
 
 
 def test_wilson_interval():

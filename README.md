@@ -33,7 +33,19 @@ The 10 forecasts made on 9 November were scored against the first bar of the nex
 
 The model forecast moves of about 0.01%, while Korean stocks opened sharply higher (SK hynix +6.6%, Samsung Electronics +4.7%). All ten outcomes come from one market-wide move, so this is effectively a single observation.
 
-The 80% band missed because it was sized mostly from intraday hourly errors, while these targets include the overnight gap. Sizing the band separately for the first bar of each session is the next fix.
+The 80% band missed because it was sized mostly from intraday hourly errors, while these targets include the overnight gap.
+
+**Fixed on 2026-11-10:** the band is now sized separately for targets that open a new session. If a group has too few model errors, the spread of realised returns of the same kind is used instead.
+
+| Walk-forward band coverage (target 80%; each band uses only earlier data) | Before | After |
+|---|---|---|
+| Targets that open a new session (20 forecasts) | 40% | 85% |
+| Within a session (190 forecasts) | – | 74% |
+| All 210 forecasts | 81% | 75% |
+
+A symmetric band was also tested and rejected: it covered 89%, wider than needed. The choice was made on walk-forward coverage, not on the 10 live outcomes.
+
+The report was rebuilt from the saved 9 November scrape with `run --from-cache --as-of 2026-11-09T10:43:28Z`. No model score changed. The ledger keeps the original forecasts and bands, so the 3 of 10 above stands.
 
 The scored forecasts are in [`data/ledger.csv`](data/ledger.csv). `report.html` was generated before this check, so its ledger section still says pending.
 
@@ -57,6 +69,7 @@ Open `reports/latest/report.html`.
 |---|---|
 | `run --demo` | Tries the whole pipeline with no tokens, using synthetic posts and real prices. Output goes to `reports/demo/` and is labelled synthetic on the page. |
 | `run --from-cache` | Re-runs modelling and reporting on today's saved scrape, with no new API spend. |
+| `run --from-cache --as-of <UTC time>` | Rebuilds a past run exactly from that day's saved scrape, for example after a code fix. |
 | `run --sentiment lexicon` | Skips the transformer models (about 1.6 GB of downloads on first use). |
 
 Tickers, actors, row caps, Telegram channels and model settings are all in [`config/universe.yaml`](config/universe.yaml). Setting `interval: 1d` there switches to daily bars, but ten days then gives only about 70 rows, too few for a stable fit. That is why hourly is the default.

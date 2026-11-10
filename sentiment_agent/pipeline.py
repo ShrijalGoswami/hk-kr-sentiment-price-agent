@@ -25,6 +25,7 @@ class RunOptions:
     from_cache: bool = False
     backend: str | None = None
     signal: float = 0.0  # demo only: plant a known effect
+    as_of: pd.Timestamp | None = None  # with from_cache: rebuild a past run exactly, from its saved scrape
 
 
 def _load_prices(cfg: Config, now: pd.Timestamp) -> tuple[dict, dict, dict]:
@@ -56,7 +57,12 @@ def source_warnings(cfg: Config, posts: pd.DataFrame) -> list[str]:
 
 
 def run(cfg: Config, options: RunOptions) -> Path:
-    now = pd.Timestamp.now(tz="UTC").floor("s")
+    if options.as_of is not None and not options.from_cache:
+        raise SystemExit("--as-of rebuilds a past run from its saved scrape, so it needs --from-cache.")
+    today = pd.Timestamp.now(tz="UTC").floor("s")
+    now = options.as_of if options.as_of is not None else today
+    rebuilt = (f"Rebuilt on {today:%Y-%m-%d} from the scrape saved on {now:%Y-%m-%d}. No new posts or news were collected; "
+               f"the live ledger below includes forecasts scored after that date.") if options.as_of is not None else None
     run_id = now.strftime("%Y%m%dT%H%M%SZ")
     window_start = now - pd.Timedelta(days=cfg.window_days)
     out_dir = ROOT / "reports" / ("demo" if options.demo else "latest")
@@ -127,7 +133,7 @@ def run(cfg: Config, options: RunOptions) -> Path:
 
     out_dir.mkdir(parents=True, exist_ok=True)
     context = report.build_context(cfg, run_id, now, window_start, cards, result, status, cov, scored, warnings, ledger_state,
-                                   ledger_summary, scorer.used, options.demo)
+                                   ledger_summary, scorer.used, options.demo, rebuilt)
     (out_dir / "report.html").write_text(report.render(context), encoding="utf-8")
     (out_dir / "tickers.json").write_text(json.dumps(cards, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
     report.tickers_table(cards).to_csv(out_dir / "tickers.csv", index=False, encoding="utf-8-sig")

@@ -172,6 +172,50 @@ def permutation_test(panel: pd.DataFrame, oos_rows: pd.Index, price_pred: pd.Ser
             "p_value": float((1 + (arr >= observed).sum()) / (1 + n_perm)), "n_permutations": n_perm}
 
 
+BAND = (0.1, 0.9)
+MIN_BAND_SAMPLE = 15
+
+
+def band_offsets(history: pd.DataFrame, pred: str, exchange: str, overnight: bool,
+                 split: bool = True) -> tuple[float, float] | None:
+    """10th and 90th percentile of earlier misses for the same kind of target.
+
+    `history` holds realised rows, with the out-of-sample prediction where one existed. A target that opens a new
+    session carries the whole overnight gap and misses far more widely than an hour-to-hour target. One pooled band
+    was too narrow exactly there: on the first live check only 3 of 10 next-morning prices fell inside it. When a
+    kind has too few model errors, the spread of its realised returns is used instead, never the other kind."""
+    errors = history.dropna(subset=[pred])
+    miss = errors["y"] - errors[pred]
+    same_exchange = errors["exchange"] == exchange
+    if split:
+        same_kind = errors["overnight"] == overnight
+        realised = history.loc[(history["exchange"] == exchange) & (history["overnight"] == overnight), "y"]
+        candidates = [miss[same_exchange & same_kind], miss[same_kind], realised]
+    else:
+        candidates = [miss[same_exchange]]
+    for sample in candidates:
+        if len(sample) >= MIN_BAND_SAMPLE:
+            low, high = sample.quantile(BAND).to_numpy()
+            return float(low), float(high)
+    return None
+
+
+def band_coverage(oos: pd.DataFrame, pred: str, split: bool) -> dict:
+    """Share of out-of-sample targets that landed inside the 80% band, building every band only from data that
+    had already been realised when that forecast was made."""
+    history = oos.sort_values("cutoff")
+    inside: dict[bool, list[bool]] = {True: [], False: []}
+    for _, row in history.dropna(subset=[pred]).iterrows():
+        past = history[history["target_end"] <= row["cutoff"]]
+        offsets = band_offsets(past, pred, row["exchange"], bool(row["overnight"]), split) if len(past) else None
+        if offsets:
+            inside[bool(row["overnight"])].append(offsets[0] <= row["y"] - row[pred] <= offsets[1])
+    both = inside[True] + inside[False]
+    share = lambda xs: float(np.mean(xs)) if xs else float("nan")
+    return {"n": len(both), "n_overnight": len(inside[True]), "overall": share(both),
+            "overnight": share(inside[True]), "intraday": share(inside[False])}
+
+
 @dataclass
 class ModelResult:
     oos: pd.DataFrame
@@ -181,6 +225,7 @@ class ModelResult:
     forecasts: pd.DataFrame
     coefficients: pd.DataFrame
     gate: dict[str, dict]
+    band: dict
 
 
 def forecast_next(panel: pd.DataFrame, oos: pd.DataFrame, cfg: Config, fitter: Fitter, features: list[str]) -> pd.DataFrame:
@@ -190,11 +235,12 @@ def forecast_next(panel: pd.DataFrame, oos: pd.DataFrame, cfg: Config, fitter: F
     latest = panel.sort_values("end").groupby("symbol").tail(1).copy()
     latest["pred_ret"] = predict(latest[features].to_numpy(float))
     champion = cfg.model["champion"]
-    residuals = (oos["y"] - oos[champion]).dropna().groupby(oos["exchange"])
     rows = []
     for _, r in latest.iterrows():
-        low_q, high_q = (residuals.get_group(r["exchange"]).quantile([0.1, 0.9]).to_numpy()
-                         if r["exchange"] in residuals.groups else (-1.28 * r["vol"], 1.28 * r["vol"]))
+        offsets = band_offsets(oos, champion, r["exchange"], bool(r["overnight"]))
+        if offsets is None:
+            log.warning("%s: too few past errors for an empirical band; using recent volatility", r["symbol"])
+        low_q, high_q = offsets or (-1.28 * r["vol"], 1.28 * r["vol"])
         rows.append({"symbol": r["symbol"], "exchange": r["exchange"], "base_end": r["end"], "base_close": float(r["close"]),
                      "pred_ret": float(r["pred_ret"]), "pred_price": float(r["close"] * np.exp(r["pred_ret"])),
                      "band_low": float(r["close"] * np.exp(r["pred_ret"] + low_q)),
@@ -205,7 +251,7 @@ def forecast_next(panel: pd.DataFrame, oos: pd.DataFrame, cfg: Config, fitter: F
 def run(panel: pd.DataFrame, cfg: Config, interval_hours: float = 1.0) -> ModelResult:
     champion = cfg.model["champion"]
     known = panel[panel["y"].notna()]
-    oos = known[["symbol", "exchange", "start", "end", "cutoff", "close", "close_next", "y", "oc_next"]].copy()
+    oos = known[["symbol", "exchange", "start", "end", "cutoff", "target_end", "overnight", "close", "close_next", "y", "oc_next"]].copy()
     oos["naive"] = 0.0
     for name, (features, fitter) in MODELS.items():
         log.info("walk-forward: %s", name)
@@ -239,4 +285,5 @@ def run(panel: pd.DataFrame, cfg: Config, interval_hours: float = 1.0) -> ModelR
     scaler = StandardScaler().fit(full)
     ridge = Ridge(alpha=100.0).fit(scaler.transform(full), y)
     coefficients = pd.DataFrame({"feature": features, "coef_bps": ridge.coef_ * 1e4}).sort_values("coef_bps", key=np.abs, ascending=False)
-    return ModelResult(oos, scores, strategy(scored, champion, cfg), permutation, forecasts, coefficients, gate)
+    band = {"split": band_coverage(oos, champion, split=True), "pooled": band_coverage(oos, champion, split=False)}
+    return ModelResult(oos, scores, strategy(scored, champion, cfg), permutation, forecasts, coefficients, gate, band)

@@ -5,6 +5,8 @@ import argparse
 import json
 import logging
 
+import pandas as pd
+
 from . import pipeline, sources
 from .config import load_config
 
@@ -16,6 +18,7 @@ def main() -> None:
     run.add_argument("--demo", action="store_true", help="synthetic posts and news, real prices, no tokens needed")
     run.add_argument("--from-cache", action="store_true", help="re-use today's saved scrape instead of calling Apify and Exa")
     run.add_argument("--sentiment", choices=["auto", "transformer", "lexicon"], help="override the sentiment backend")
+    run.add_argument("--as-of", help="with --from-cache: rebuild the run made at this UTC time, e.g. 2026-11-09T10:43:28Z")
     sub.add_parser("check", help="score earlier forecasts against bars that have since closed")
     sub.add_parser("estimate", help="print the worst-case Apify cost of a full run")
     args = parser.parse_args()
@@ -32,7 +35,11 @@ def main() -> None:
     elif args.command == "check":
         print(json.dumps(pipeline.check(cfg), indent=1))
     else:
-        path = pipeline.run(cfg, pipeline.RunOptions(demo=args.demo, from_cache=args.from_cache, backend=args.sentiment))
+        as_of = None
+        if args.as_of:
+            stamp = pd.Timestamp(args.as_of)
+            as_of = stamp.tz_localize("UTC") if stamp.tzinfo is None else stamp.tz_convert("UTC")
+        path = pipeline.run(cfg, pipeline.RunOptions(demo=args.demo, from_cache=args.from_cache, backend=args.sentiment, as_of=as_of))
         print(f"\nReport: {path}")
 
 
