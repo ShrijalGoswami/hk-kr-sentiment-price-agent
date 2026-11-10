@@ -325,7 +325,7 @@ def error_frame(seed=3, days=40):
         overnight = i % 7 == 6
         t += pd.Timedelta(hours=16 if overnight else 1)
         rows.append({"symbol": "X", "exchange": "HKEX", "cutoff": t, "target_end": t + pd.Timedelta(hours=1), "overnight": overnight,
-                     "y": float(rng.normal(0, 0.016 if overnight else 0.002)), "ridge_full": 0.0})
+                     "y": float(rng.normal(0, 0.016 if overnight else 0.002)), "ridge_full": 0.0, "vol": 0.002})
     return pd.DataFrame(rows)
 
 
@@ -349,6 +349,34 @@ def test_thin_error_history_falls_back_to_returns_of_the_same_kind():
     night = model.band_offsets(frame, "ridge_full", "HKEX", True)
     day = model.band_offsets(frame, "ridge_full", "HKEX", False)
     assert night[1] - night[0] > 4 * (day[1] - day[0])
+
+
+def two_stock_frame(seed=4, hours=400):
+    """Two stocks on one exchange: B moves four times as much as A, and its trailing volatility says so."""
+    rng = np.random.default_rng(seed)
+    rows, t = [], pd.Timestamp("2026-10-01", tz=UTC)
+    for i in range(hours):
+        t += pd.Timedelta(hours=1)
+        for symbol, vol in (("A", 0.001), ("B", 0.004)):
+            rows.append({"symbol": symbol, "exchange": "KRX", "cutoff": t, "target_end": t + pd.Timedelta(hours=1), "overnight": False,
+                         "vol": vol, "y": float(rng.normal(0, vol)), "ridge_full": 0.0})
+    return pd.DataFrame(rows)
+
+
+def test_volatility_scaling_widens_the_band_for_jumpy_stocks():
+    frame = two_stock_frame()
+    calm = model.band_offsets(frame, "ridge_full", "KRX", False, vol=0.001)
+    jumpy = model.band_offsets(frame, "ridge_full", "KRX", False, vol=0.004)
+    assert jumpy[1] - jumpy[0] == pytest.approx(4 * (calm[1] - calm[0]))
+    assert model.band_offsets(frame, "ridge_full", "KRX", False) == model.band_offsets(frame, "ridge_full", "KRX", False, vol=None)
+
+
+def test_volatility_scaling_covers_each_stock_evenly():
+    frame = two_stock_frame()
+    plain = model.band_coverage(frame, "ridge_full", True)
+    scaled = model.band_coverage(frame, "ridge_full", True, scaled=True)
+    assert plain["by_symbol"]["A"] > 0.95 and plain["by_symbol"]["B"] < 0.7
+    assert all(abs(v - 0.8) < 0.06 for v in scaled["by_symbol"].values()) and scaled["spread"] < 0.1
 
 
 def test_band_coverage_only_uses_errors_known_at_forecast_time():

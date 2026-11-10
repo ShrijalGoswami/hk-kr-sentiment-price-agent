@@ -176,44 +176,59 @@ BAND = (0.1, 0.9)
 MIN_BAND_SAMPLE = 15
 
 
-def band_offsets(history: pd.DataFrame, pred: str, exchange: str, overnight: bool,
-                 split: bool = True) -> tuple[float, float] | None:
+def band_offsets(history: pd.DataFrame, pred: str, exchange: str, overnight: bool, split: bool = True,
+                 vol: float | None = None) -> tuple[float, float] | None:
     """10th and 90th percentile of earlier misses for the same kind of target.
 
     `history` holds realised rows, with the out-of-sample prediction where one existed. A target that opens a new
     session carries the whole overnight gap and misses far more widely than an hour-to-hour target. One pooled band
     was too narrow exactly there: on the first live check only 3 of 10 next-morning prices fell inside it. When a
-    kind has too few model errors, the spread of its realised returns is used instead, never the other kind."""
-    errors = history.dropna(subset=[pred])
+    kind has too few model errors, the spread of its realised returns is used instead, never the other kind.
+
+    With `vol`, each miss is first divided by that row's trailing volatility and the percentiles are multiplied
+    back by `vol`, so a jumpy stock gets a wider band than a calm one on the same exchange."""
+    scaled = vol is not None and vol > 0
+    usable = history[history["vol"] > 0] if scaled else history
+    errors = usable.dropna(subset=[pred])
     miss = errors["y"] - errors[pred]
+    realised = usable["y"]
+    if scaled:
+        miss, realised = miss / errors["vol"], realised / usable["vol"]
     same_exchange = errors["exchange"] == exchange
     if split:
         same_kind = errors["overnight"] == overnight
-        realised = history.loc[(history["exchange"] == exchange) & (history["overnight"] == overnight), "y"]
-        candidates = [miss[same_exchange & same_kind], miss[same_kind], realised]
+        candidates = [miss[same_exchange & same_kind], miss[same_kind],
+                      realised[(usable["exchange"] == exchange) & (usable["overnight"] == overnight)]]
     else:
         candidates = [miss[same_exchange]]
     for sample in candidates:
         if len(sample) >= MIN_BAND_SAMPLE:
-            low, high = sample.quantile(BAND).to_numpy()
+            low, high = sample.quantile(BAND).to_numpy() * (vol if scaled else 1.0)
             return float(low), float(high)
     return None
 
 
-def band_coverage(oos: pd.DataFrame, pred: str, split: bool) -> dict:
+def band_coverage(oos: pd.DataFrame, pred: str, split: bool, scaled: bool = False) -> dict:
     """Share of out-of-sample targets that landed inside the 80% band, building every band only from data that
-    had already been realised when that forecast was made."""
+    had already been realised when that forecast was made. `spread` is the gap between the best- and worst-covered
+    stock: a well-sized band covers every stock about equally, not just the average."""
     history = oos.sort_values("cutoff")
     inside: dict[bool, list[bool]] = {True: [], False: []}
+    per_symbol: dict[str, list[bool]] = {}
     for _, row in history.dropna(subset=[pred]).iterrows():
         past = history[history["target_end"] <= row["cutoff"]]
-        offsets = band_offsets(past, pred, row["exchange"], bool(row["overnight"]), split) if len(past) else None
+        vol = float(row["vol"]) if scaled else None
+        offsets = band_offsets(past, pred, row["exchange"], bool(row["overnight"]), split, vol) if len(past) else None
         if offsets:
-            inside[bool(row["overnight"])].append(offsets[0] <= row["y"] - row[pred] <= offsets[1])
+            hit = offsets[0] <= row["y"] - row[pred] <= offsets[1]
+            inside[bool(row["overnight"])].append(hit)
+            per_symbol.setdefault(row["symbol"], []).append(hit)
     both = inside[True] + inside[False]
     share = lambda xs: float(np.mean(xs)) if xs else float("nan")
-    return {"n": len(both), "n_overnight": len(inside[True]), "overall": share(both),
-            "overnight": share(inside[True]), "intraday": share(inside[False])}
+    by_symbol = {k: share(v) for k, v in sorted(per_symbol.items())}
+    return {"n": len(both), "n_overnight": len(inside[True]), "overall": share(both), "overnight": share(inside[True]),
+            "intraday": share(inside[False]), "by_symbol": by_symbol,
+            "spread": (max(by_symbol.values()) - min(by_symbol.values())) if by_symbol else float("nan")}
 
 
 @dataclass
@@ -237,7 +252,7 @@ def forecast_next(panel: pd.DataFrame, oos: pd.DataFrame, cfg: Config, fitter: F
     champion = cfg.model["champion"]
     rows = []
     for _, r in latest.iterrows():
-        offsets = band_offsets(oos, champion, r["exchange"], bool(r["overnight"]))
+        offsets = band_offsets(oos, champion, r["exchange"], bool(r["overnight"]), vol=float(r["vol"]))
         if offsets is None:
             log.warning("%s: too few past errors for an empirical band; using recent volatility", r["symbol"])
         low_q, high_q = offsets or (-1.28 * r["vol"], 1.28 * r["vol"])
@@ -251,7 +266,7 @@ def forecast_next(panel: pd.DataFrame, oos: pd.DataFrame, cfg: Config, fitter: F
 def run(panel: pd.DataFrame, cfg: Config, interval_hours: float = 1.0) -> ModelResult:
     champion = cfg.model["champion"]
     known = panel[panel["y"].notna()]
-    oos = known[["symbol", "exchange", "start", "end", "cutoff", "target_end", "overnight", "close", "close_next", "y", "oc_next"]].copy()
+    oos = known[["symbol", "exchange", "start", "end", "cutoff", "target_end", "overnight", "vol", "close", "close_next", "y", "oc_next"]].copy()
     oos["naive"] = 0.0
     for name, (features, fitter) in MODELS.items():
         log.info("walk-forward: %s", name)
@@ -285,5 +300,7 @@ def run(panel: pd.DataFrame, cfg: Config, interval_hours: float = 1.0) -> ModelR
     scaler = StandardScaler().fit(full)
     ridge = Ridge(alpha=100.0).fit(scaler.transform(full), y)
     coefficients = pd.DataFrame({"feature": features, "coef_bps": ridge.coef_ * 1e4}).sort_values("coef_bps", key=np.abs, ascending=False)
-    band = {"split": band_coverage(oos, champion, split=True), "pooled": band_coverage(oos, champion, split=False)}
+    band = {"used": band_coverage(oos, champion, split=True, scaled=True),
+            "split_unscaled": band_coverage(oos, champion, split=True),
+            "pooled": band_coverage(oos, champion, split=False)}
     return ModelResult(oos, scores, strategy(scored, champion, cfg), permutation, forecasts, coefficients, gate, band)

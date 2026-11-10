@@ -167,7 +167,7 @@ ul.plain{margin:6px 0 0;padding-left:18px}
 {% endfor %}
 </tbody>
 </table>
-{% if band.split.n %}<p class="small ink2" style="margin-top:12px"><b>80% forecast band, out-of-sample coverage:</b> {{ band.split.overall|pct(0) }} of {{ band.split.n }} forecasts. That is {{ band.split.overnight|pct(0) }} of the {{ band.split.n_overnight }} targets that open a new session (a small sample) and {{ band.split.intraday|pct(0) }} within a session, with each band built only from earlier errors. A single band for every bar covered {{ band.pooled.overall|pct(0) }} overall and only {{ band.pooled.overnight|pct(0) }} of new-session targets, so the two are now sized separately.</p>{% endif %}
+{% if band.used.n %}<p class="small ink2" style="margin-top:12px"><b>80% forecast band, out-of-sample coverage:</b> {{ band.used.overall|pct(0) }} of {{ band.used.n }} forecasts. That is {{ band.used.overnight|pct(0) }} of the {{ band.used.n_overnight }} targets that open a new session (a small sample) and {{ band.used.intraday|pct(0) }} within a session. Per stock it ranges from {{ (band.used.by_symbol.values()|min)|pct(0) }} to {{ (band.used.by_symbol.values()|max)|pct(0) }}. Each band is built only from earlier errors, sized separately for new-session targets, and scaled by the stock's own recent volatility. For comparison, one band for every bar covered {{ band.pooled.overall|pct(0) }} overall and {{ band.pooled.overnight|pct(0) }} of new-session targets; without volatility scaling, coverage per stock ranged from {{ (band.split_unscaled.by_symbol.values()|min)|pct(0) }} to {{ (band.split_unscaled.by_symbol.values()|max)|pct(0) }}.</p>{% endif %}
 </div>
 <div class="two">
   <div class="panel"><h3>Does sentiment add anything?</h3>

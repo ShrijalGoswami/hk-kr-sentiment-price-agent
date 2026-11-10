@@ -138,6 +138,7 @@ def run(cfg: Config, options: RunOptions) -> Path:
     (out_dir / "tickers.json").write_text(json.dumps(cards, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
     report.tickers_table(cards).to_csv(out_dir / "tickers.csv", index=False, encoding="utf-8-sig")
     result.scores.round(4).to_csv(out_dir / "model_scores.csv", index=False)
+    (out_dir / "band_coverage.json").write_text(json.dumps(result.band, indent=1), encoding="utf-8")
     result.oos.dropna(subset=[cfg.model["champion"]]).round(6).to_csv(out_dir / "walk_forward_predictions.csv", index=False)
     log.info("report written to %s", out_dir / "report.html")
     return out_dir / "report.html"

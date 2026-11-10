@@ -35,19 +35,25 @@ The model forecast moves of about 0.01%, while Korean stocks opened sharply high
 
 The 80% band missed because it was sized mostly from intraday hourly errors, while these targets include the overnight gap.
 
-**Fixed on 2026-11-10:** the band is now sized separately for targets that open a new session. If a group has too few model errors, the spread of realised returns of the same kind is used instead.
+**Fixed on 2026-11-10, in two steps.**
 
-| Walk-forward band coverage (target 80%; each band uses only earlier data) | Before | After |
-|---|---|---|
-| Targets that open a new session (20 forecasts) | 40% | 85% |
-| Within a session (190 forecasts) | – | 74% |
-| All 210 forecasts | 81% | 75% |
+1. **Separate band for new-session targets.** If a group has too few model errors, the spread of realised returns of the same kind is used instead.
+2. **Scaling by each stock's recent volatility.** Every past miss is divided by that stock's trailing volatility at the time, and the band is multiplied back by the stock's current volatility, so a jumpy stock gets a wider band than a calm one.
 
-A symmetric band was also tested and rejected: it covered 89%, wider than needed. The choice was made on walk-forward coverage, not on the 10 live outcomes.
+| Walk-forward band coverage (target 80%; each band uses only earlier data) | One band | + new-session split | + volatility scaling (used) |
+|---|---|---|---|
+| Targets that open a new session | 40% | 85% | 85% |
+| Within a session | 87% | 74% | 70% |
+| All forecasts | 81% | 75% | 71% |
+| Range across the 10 stocks | 59–94% | 61–92% | 61–78% |
 
-The report was rebuilt from the saved 9 November scrape with `run --from-cache --as-of 2026-11-09T10:43:28Z`. No model score changed. The ledger keeps the original forecasts and bands, so the 3 of 10 above stands.
+Volatility scaling roughly halves the gap between the best- and worst-covered stock, but leaves the band a little narrower than intended overall. With about 21 forecasts per stock and 20 new-session targets, these differences are within sampling noise. The change rests on the principle that a volatile stock needs a wider band, which the synthetic tests confirm.
 
-The scored forecasts are in [`data/ledger.csv`](data/ledger.csv). `report.html` was generated before this check, so its ledger section still says pending.
+A symmetric band was also tested and rejected: it covered 89%, wider than needed. Choices were made on walk-forward coverage, never on the 10 live outcomes.
+
+The report was rebuilt from the saved 9 November scrape with `run --from-cache --as-of 2026-11-09T10:43:28Z`. No model score changed. The ledger keeps the original forecasts and bands, so the live result of 3 of 10 stands.
+
+The scored forecasts are in [`data/ledger.csv`](data/ledger.csv), and the rebuilt report's ledger section shows them. Band coverage for all three versions is in [`reports/latest/band_coverage.json`](reports/latest/band_coverage.json).
 
 ## Quick start
 
